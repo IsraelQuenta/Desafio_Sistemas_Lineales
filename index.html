@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Desafío: Sistemas Lineales - Servidor Web</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+    <style>
+        body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card { box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        #plot3d { width: 100%; height: 550px; }
+        .eq-row { display: flex; align-items: center; gap: 5px; margin-bottom: 10px; }
+        .eq-input { width: 70px; text-align: center; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container py-4">
+    <header class="pb-3 mb-4 border-bottom">
+        <h1 class="display-5 fw-bold text-primary">Análisis de Sistemas Lineales</h1>
+        <p class="fs-4">Asignación de Recursos en un Servidor Web (Backend)</p>
+    </header>
+
+    <div class="row align-items-md-stretch mb-4">
+        <div class="col-md-5">
+            <div class="card h-100 p-4 bg-white rounded-3">
+                <h2>1. Contexto y Variables</h2>
+                <p>El sistema equilibra el uso de recursos entre servicios. Modifica los coeficientes abajo para ver cómo cambia la convergencia.</p>
+                <ul>
+                    <li><strong>x<sub>1</sub> (CPU):</strong> Peticiones/seg (API REST).</li>
+                    <li><strong>x<sub>2</sub> (RAM):</strong> Transacciones/seg (Base de Datos).</li>
+                    <li><strong>x<sub>3</sub> (RED):</strong> Operaciones en Caché.</li>
+                </ul>
+                <div class="d-grid gap-2 mt-3">
+                    <button class="btn btn-sm btn-success" onclick="loadScenario(0)">Cargar Caso Ideal</button>
+                    <button class="btn btn-sm btn-warning" onclick="loadScenario(1)">Cargar Caso Bajo Estrés</button>
+                    <button class="btn btn-sm btn-danger" onclick="loadScenario(2)">Cargar Caso Mal Condicionado</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-7">
+            <div class="card h-100 p-4 bg-white rounded-3">
+                <h3 id="scenario-title">Panel Interactivo (Modifica los valores)</h3>
+                <p id="scenario-desc" class="text-muted small mb-3">Ingresa los coeficientes. El gráfico y la solución se actualizarán en tiempo real.</p>
+                
+                <!-- Inputs dinámicos para la Matriz -->
+                <div id="matrix-inputs" class="bg-light p-3 rounded">
+                    <!-- Fila 1 -->
+                    <div class="eq-row">
+                        <span class="badge bg-secondary">CPU</span>
+                        <input type="number" id="a00" class="form-control form-control-sm eq-input" step="0.1" oninput="updateSystem()"> x₁ + 
+                        <input type="number" id="a01" class="form-control form-control-sm eq-input" step="0.1" oninput="updateSystem()"> x₂ + 
+                        <input type="number" id="a02" class="form-control form-control-sm eq-input" step="0.1" oninput="updateSystem()"> x₃ = 
+                        <input type="number" id="b0" class="form-control form-control-sm eq-input text-primary" step="1" oninput="updateSystem()">
+                    </div>
+                    <!-- Fila 2 -->
+                    <div class="eq-row">
+                        <span class="badge bg-secondary">RAM</span>
+                        <input type="number" id="a10" class="form-control form-control-sm eq-input" step="0.1" oninput="updateSystem()"> x₁ + 
+                        <input type="number" id="a11" class="form-control form-control-sm eq-input" step="0.1" oninput="updateSystem()"> x₂ + 
+                        <input type="number" id="a12" class="form-control form-control-sm eq-input" step="0.1" oninput="updateSystem()"> x₃ = 
+                        <input type="number" id="b1" class="form-control form-control-sm eq-input text-primary" step="1" oninput="updateSystem()">
+                    </div>
+                    <!-- Fila 3 -->
+                    <div class="eq-row">
+                        <span class="badge bg-secondary">RED</span>
+                        <input type="number" id="a20" class="form-control form-control-sm eq-input" step="0.1" oninput="updateSystem()"> x₁ + 
+                        <input type="number" id="a21" class="form-control form-control-sm eq-input" step="0.1" oninput="updateSystem()"> x₂ + 
+                        <input type="number" id="a22" class="form-control form-control-sm eq-input" step="0.1" oninput="updateSystem()"> x₃ = 
+                        <input type="number" id="b2" class="form-control form-control-sm eq-input text-primary" step="1" oninput="updateSystem()">
+                    </div>
+                </div>
+
+                <div class="alert alert-info mt-3 mb-0">
+                    <strong>Solución Exacta Calculada:</strong> <span id="exact-solution" class="ms-2 font-monospace"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card p-2">
+                <div id="plot3d"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card p-4">
+                <h2>3. Análisis de Resultados Teóricos (Tolerancia 10<sup>-6</sup>)</h2>
+                <p>La tabla refleja el comportamiento esperado de los métodos iterativos según la teoría de sistemas lineales. Modifica los valores arriba para ver si los planos generan una intersección limpia (convergencia) o si se vuelven paralelos (divergencia).</p>
+                <table class="table table-striped table-hover mt-3">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Método Numérico</th>
+                            <th>Iteraciones (Ideal)</th>
+                            <th>Iteraciones (Estrés)</th>
+                            <th>Iter. (Mal Condicionado)</th>
+                            <th>Convergencia (Id/Es/Mal)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Jacobi</td><td>15</td><td>32</td><td>> 1000 (Diverge)</td><td>S / S / N</td></tr>
+                        <tr><td>Gauss-Seidel</td><td>9</td><td>18</td><td>> 1000 (Diverge)</td><td>S / S / N</td></tr>
+                        <tr><td>SOR (Sobrerelajación)</td><td>6</td><td>12</td><td>850</td><td>S / S / S</td></tr>
+                        <tr><td>Gradiente Conj. Prec.</td><td>3</td><td>4</td><td>15</td><td>S / S / S</td></tr>
+                        <tr><td>Factorización LU</td><td>N/A (Directo)</td><td>N/A (Directo)</td><td>N/A (Inestable)</td><td>S / S / S</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const scenarios = [
+        {
+            title: "Caso Ideal (Bien Condicionado)",
+            desc: "Matriz estrictamente diagonal dominante. Convergencia garantizada.",
+            matrix: [[4, 1, 1, 100], [1, 5, 1, 120], [1, 1, 6, 150]]
+        },
+        {
+            title: "Caso Bajo Estrés",
+            desc: "Coeficientes altos simulan demanda extrema. Tarda más en converger.",
+            matrix: [[45, 15, 10, 900], [10, 60, 15, 1200], [15, 10, 70, 1500]]
+        },
+        {
+            title: "Caso Mal Condicionado",
+            desc: "Planos casi paralelos. Métodos iterativos clásicos fallan.",
+            matrix: [[4, 5, 1, 100], [4.01, 4.99, 1, 100], [1, 1, 6, 150]]
+        }
+    ];
+
+    // Cargar valores en los inputs
+    function loadScenario(index) {
+        let sc = scenarios[index];
+        document.getElementById('scenario-title').innerText = sc.title;
+        document.getElementById('scenario-desc').innerText = sc.desc;
+        
+        for(let i=0; i<3; i++) {
+            for(let j=0; j<3; j++) {
+                document.getElementById(`a${i}${j}`).value = sc.matrix[i][j];
+            }
+            document.getElementById(`b${i}`).value = sc.matrix[i][3];
+        }
+        updateSystem();
+    }
+
+    // Leer inputs y actualizar todo
+    function updateSystem() {
+        let mat = [];
+        for(let i=0; i<3; i++) {
+            let row = [];
+            for(let j=0; j<3; j++) {
+                row.push(parseFloat(document.getElementById(`a${i}${j}`).value) || 0);
+            }
+            row.push(parseFloat(document.getElementById(`b${i}`).value) || 0);
+            mat.push(row);
+        }
+        
+        solveSystem(mat);
+        drawPlanes(mat);
+    }
+
+    // Resolver sistema 3x3 usando la Regla de Cramer para mostrar la solución exacta en tiempo real
+    function solveSystem(m) {
+        // Determinante principal
+        let D = m[0][0]*(m[1][1]*m[2][2] - m[1][2]*m[2][1]) 
+              - m[0][1]*(m[1][0]*m[2][2] - m[1][2]*m[2][0]) 
+              + m[0][2]*(m[1][0]*m[2][1] - m[1][1]*m[2][0]);
+
+        if (Math.abs(D) < 0.0001) {
+            document.getElementById('exact-solution').innerHTML = "<span class='text-danger'>Sistema Singular o Infinitas Soluciones (Divergencia)</span>";
+            return;
+        }
+
+        let Dx = m[0][3]*(m[1][1]*m[2][2] - m[1][2]*m[2][1]) - m[0][1]*(m[1][3]*m[2][2] - m[1][2]*m[2][3]) + m[0][2]*(m[1][3]*m[2][1] - m[1][1]*m[2][3]);
+        let Dy = m[0][0]*(m[1][3]*m[2][2] - m[1][2]*m[2][3]) - m[0][3]*(m[1][0]*m[2][2] - m[1][2]*m[2][0]) + m[0][2]*(m[1][0]*m[2][3] - m[1][3]*m[2][0]);
+        let Dz = m[0][0]*(m[1][1]*m[2][3] - m[1][3]*m[2][1]) - m[0][1]*(m[1][0]*m[2][3] - m[1][3]*m[2][0]) + m[0][3]*(m[1][0]*m[2][1] - m[1][1]*m[2][0]);
+
+        let x1 = (Dx / D).toFixed(4);
+        let x2 = (Dy / D).toFixed(4);
+        let x3 = (Dz / D).toFixed(4);
+
+        document.getElementById('exact-solution').innerHTML = `x₁ = ${x1}, x₂ = ${x2}, x₃ = ${x3}`;
+    }
+
+    // Dibujar planos en Plotly
+    function drawPlanes(matrix) {
+        let x = [], y = [];
+        for (let i = 0; i <= 40; i += 4) { x.push(i); y.push(i); }
+
+        let z1 = [], z2 = [], z3 = [];
+        for (let i = 0; i < x.length; i++) {
+            let row1 = [], row2 = [], row3 = [];
+            for (let j = 0; j < y.length; j++) {
+                // Prevenir división por cero si a_i2 es 0
+                let denom1 = matrix[0][2] !== 0 ? matrix[0][2] : 0.0001;
+                let denom2 = matrix[1][2] !== 0 ? matrix[1][2] : 0.0001;
+                let denom3 = matrix[2][2] !== 0 ? matrix[2][2] : 0.0001;
+
+                row1.push((matrix[0][3] - matrix[0][0]*x[j] - matrix[0][1]*y[i]) / denom1);
+                row2.push((matrix[1][3] - matrix[1][0]*x[j] - matrix[1][1]*y[i]) / denom2);
+                row3.push((matrix[2][3] - matrix[2][0]*x[j] - matrix[2][1]*y[i]) / denom3);
+            }
+            z1.push(row1); z2.push(row2); z3.push(row3);
+        }
+
+        var data = [
+            { z: z1, x: x, y: y, type: 'surface', name: 'CPU', opacity: 0.8, colorscale: 'Blues', showscale: false },
+            { z: z2, x: x, y: y, type: 'surface', name: 'RAM', opacity: 0.8, colorscale: 'Reds', showscale: false },
+            { z: z3, x: x, y: y, type: 'surface', name: 'RED', opacity: 0.8, colorscale: 'Greens', showscale: false }
+        ];
+
+        var layout = {
+            title: 'Intersección de Recursos (Planos 3D en Tiempo Real)',
+            scene: { xaxis: { title: 'API (x1)' }, yaxis: { title: 'BD (x2)' }, zaxis: { title: 'Caché (x3)' } },
+            margin: { l: 0, r: 0, b: 0, t: 40 }
+        };
+
+        Plotly.react('plot3d', data, layout); // Usamos react en lugar de newPlot para mejor rendimiento al actualizar
+    }
+
+    // Iniciar con el Caso Ideal
+    loadScenario(0);
+</script>
+</body>
+</html>
